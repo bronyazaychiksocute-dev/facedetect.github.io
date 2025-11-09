@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Camera Client Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --main-bg: linear-gradient(135deg, #1a0000 0%, #330000 50%, #660000 100%);
+      --glass: rgba(255, 255, 255, 0.08);
+      --accent: #ff2e2e;
+      --accent2: #ff5e5e;
+      --text: #ffffff;
+      --overlay: rgba(0, 0, 0, 0.55);
+      --sidebar-width: 250px; /* กำหนดความกว้าง Sidebar */
+      --sidebar-bg: rgba(51, 0, 0, 0.9); /* พื้นหลัง Sidebar */
+    }
+
+    body {
+      margin: 0;
+      font-family: "Prompt", sans-serif;
+      color: var(--text);
+      /* ลบ background-image ออกจาก body เพื่อให้ Sidebar แสดงผลได้ดีขึ้น */
+      background-color: #1a0000;
+      min-height: 100vh;
+      display: flex; /* ใช้ Flexbox สำหรับ Body เพื่อจัด Sidebar และ Main Content */
+    }
+
+    /* **โครงสร้างหลัก** */
+    .app-wrapper {
+      position: fixed;
+      inset: 0;
+      background: url("https://images.unsplash.com/photo-1602524811689-bb2c57b3b45a?auto=format&fit=crop&w=1920&q=80")
+        no-repeat center center fixed;
+      background-size: cover;
+      background-blend-mode: overlay;
+      background-color: #1a0000;
+      z-index: 0;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--overlay);
+      z-index: 1;
+    }
+
+    /* **Sidebar Style** */
+    .sidebar {
+      width: var(--sidebar-width);
+      background-color: var(--sidebar-bg);
+      backdrop-filter: blur(8px);
+      box-shadow: 2px 0 15px rgba(0, 0, 0, 0.5);
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 10;
+      padding-top: 20px;
+    }
+    .sidebar-header {
+      text-align: center;
+      padding: 10px 0 30px;
+      color: var(--accent);
+      font-size: 1.2em;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 20px;
+    }
+    .nav-item {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background-color 0.3s, color 0.3s;
+      font-weight: 400;
+      font-size: 1.05em;
+      display: flex;
+      align-items: center;
+    }
+    .nav-item:hover, .nav-item.active {
+      background-color: var(--accent);
+      color: var(--text);
+      box-shadow: inset 5px 0 0 #fff;
+    }
+    .nav-item i {
+      margin-right: 15px;
+      font-size: 1.2em;
+    }
+
+    /* **Main Content Area** */
+    .main-content-area {
+      margin-left: var(--sidebar-width); /* ขยับเนื้อหาหลักให้พ้น Sidebar */
+      flex-grow: 1;
+      position: relative;
+      z-index: 2;
+      padding: 40px 20px;
+      text-align: center;
+      max-width: calc(100% - var(--sidebar-width));
+    }
+
+    .content-page {
+        display: none; /* ซ่อนทุกหน้าไว้ก่อน */
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+    .content-page.active {
+        display: block; /* แสดงเฉพาะหน้าที่ถูกเลือก */
+    }
+
+
+    /* **Styles สำหรับ Dashboard Page (เหมือนเดิม)** */
+    h1 {
+      font-size: 2.3em;
+      font-weight: 700;
+      color: var(--accent);
+      text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+    }
+
+    h2 {
+      font-weight: 400;
+      font-size: 1.1em;
+      color: #eee;
+      opacity: 0.9;
+      margin-bottom: 25px;
+    }
+
+    .camera-section {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    #video {
+      width: 90%;
+      max-width: 420px;
+      border-radius: 12px;
+      border: 3px solid var(--accent);
+      box-shadow: 0 0 25px rgba(255, 0, 0, 0.6);
+      display: block;
+      margin: 0 auto;
+    }
+
+    #message {
+      margin-top: 15px;
+      font-weight: 600;
+    }
+    
+    /* **Styles สำหรับ Progress Bar และ Risk Colors** */
+
+/* ภาชนะบรรจุแต่ละ Risk Item */
+.risk-item {
+  margin-bottom: 15px;
+  padding-bottom: 5px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.risk-item:last-child {
+  border-bottom: none;
+}
+
+.risk-name {
+  display: block;
+  font-weight: 400;
+  font-size: 1em;
+  margin-bottom: 5px;
+}
+
+/* ภาชนะบรรจุ Progress Bar */
+.progress-bar-container {
+  width: 100%;
+  height: 18px;
+  background-color: rgba(0, 0, 0, 0.4);
+  border-radius: 9px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* แถบสีเติม Progress Bar */
+.progress-bar-fill {
+  height: 100%;
+  line-height: 18px;
+  text-align: right;
+  padding-right: 8px;
+  color: #000;
+  font-weight: 700;
+  font-size: 0.75em;
+  transition: width 0.4s ease-out;
+}
+
+.color-normal {
+  background: linear-gradient(to right, #4CAF50, #8BC34A); 
+  color: #000;
+}
+.color-low {
+  background: linear-gradient(to right, #FFEB3B, #FFC107);
+  color: #000;
+}
+.color-moderate {
+  background: linear-gradient(to right, #FF9800, #FF5722);
+  color: #000;
+}
+.color-high {
+  background: linear-gradient(to right, #F44336, #D32F2F);
+  color: #fff; 
+}
+
+    #risk-container {
+      margin: 30px auto;
+      padding: 20px;
+      width: 90%;
+      max-width: 500px;
+      background: var(--glass);
+      border-radius: 12px;
+      text-align: left;
+      box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+      backdrop-filter: blur(6px);
+    }
+    
+    #risk-container h3 {
+      text-align: center;
+      color: var(--accent2);
+      margin-bottom: 12px;
+      text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+    }
+
+    /* **Styles สำหรับ History Page** */
+    .history-page h3 {
+        font-size: 2em;
+        color: var(--accent2);
+        text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        margin-bottom: 30px;
+    }
+
+    .history-card {
+        padding: 20px;
+        background: var(--glass);
+        border-radius: 12px;
+        text-align: left;
+        box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+        backdrop-filter: blur(6px);
+        margin-top: 20px;
+    }
+    
+    #history-chart .bar-content {
+        width: 100%; /* ทำให้ยาวเต็มพื้นที่ */
+    }
+
+/* ปรับปรุง .entry ให้ใช้ Grid */
+.history-card .entry {
+    display: grid;
+    grid-template-columns: 100px 1fr; /* คอลัมน์สำหรับ Label และ Bar */
+    align-items: center;
+    gap: 5px 15px; /* ระยะห่างระหว่างแถวและคอลัมน์ */
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.history-card .entry:last-child { border-bottom: none; }
+.history-card .entry .bar-label {
+    text-align: right; /* จัด label ชิดขวาในคอลัมน์แรก */
+    font-weight: 600;
+    margin-bottom: 0;
+    grid-column: 1 / 2; /* กำหนดให้อยู่คอลัมน์แรก */
+}
+.history-card .entry .bar { 
+    grid-column: 2 / 3; /* กำหนดให้อยู่คอลัมน์ที่สอง */
+    width: 100%;
+}
+
+
+/* ภาชนะบรรจุแถบ History */
+.bar {
+  background-color: rgba(255, 255, 255, 0.15); 
+  border-radius: 4px;
+  height: 15px; 
+  /* width: 100%; (กำหนดแล้วใน grid) */
+  margin-bottom: 5px;
+  overflow: hidden; 
+}
+
+/* แถบสีเติม History */
+.bar .fill {
+  height: 100%;
+  transition: width 0.5s ease-out;
+  text-align: right;
+  padding-right: 5px;
+  color: #000;
+  font-size: 0.7em;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+/* คลาสสีเฉพาะโรคใน History */
+.fill.office { background-color: #4CAF50; } /* เขียว */
+.fill.disc { background-color: #FFC107; } /* เหลือง */
+.fill.neck { background-color: #2196F3; } /* ฟ้า */
+.fill.piriformis { background-color: #E91E63; } /* ชมพู */
+    
+    /* Style เพิ่มเติมสำหรับ Header ของแต่ละรอบ */
+.history-card .entry-header {
+    border-bottom: none; /* ลบเส้นคั่นใต้ชื่อรอบ */
+    padding-bottom: 0px; 
+    margin-bottom: 5px; /* ลดระยะห่างด้านล่าง */
+}
+.history-card .entry-header .bar-label {
+    text-align: left !important; /* จัดชิดซ้าย */
+    grid-column: 1 / 3; /* ให้ข้อความครอบคลุม 2 คอลัมน์ */
+    color: var(--accent2); /* ใช้สีที่เด่นขึ้น */
+    font-weight: 700;
+    text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+}
+
+    .entry {
+      margin-bottom: 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 10px;
+    }
+    .entry:last-child { border-bottom: none; }
+    
+    #calibrate-btn {
+        /* ขนาดและรูปร่าง */
+        padding: 10px 25px; /* เพิ่มขนาด padding ให้ปุ่มใหญ่ขึ้น */
+        border-radius: 30px; /* ทำให้ขอบโค้งมนยิ่งขึ้น */
+        
+        /* สีและพื้นหลัง */
+        background: linear-gradient(135deg, var(--accent) 0%, #a00000 100%); /* เปลี่ยนเป็น Gradient สีแดงเข้ม */
+        border: 2px solid rgba(255, 255, 255, 0.2); /* เพิ่มเส้นขอบบางๆ */
+        color: #fff;
+        font-weight: 900; /* ตัวหนาขึ้น */
+        font-size: 0.8em; /* ขยายขนาดตัวอักษร */
+        letter-spacing: 0.5px; /* เพิ่มระยะห่างตัวอักษรเล็กน้อย */
+        
+        /* เอฟเฟกต์ */
+        cursor: pointer;
+        box-shadow: 0 4px 20px rgba(255, 0, 0, 0.8), 0 0 10px rgba(255, 255, 255, 0.1) inset; /* ทำให้เงาสีแดงเด่นชัด */
+        transition: all 0.3s ease; /* เพิ่ม transition สำหรับทุกการเปลี่ยนแปลง */
+        margin-top: 30px; /* เพิ่มระยะห่างด้านบน */
+        text-transform: uppercase; /* เปลี่ยนเป็นตัวพิมพ์ใหญ่ */
+    }
+
+    #calibrate-btn:hover {
+        transform: scale(1.00) translateY(-2px); /* ปุ่มขยายและลอยขึ้นเล็กน้อย */
+        box-shadow: 0 8px 30px rgba(255, 50, 50, 1), 0 0 15px rgba(255, 255, 255, 0.2) inset; /* เงาเข้มขึ้นและกระจายตัว */
+        background: linear-gradient(135deg, var(--accent2) 0%, #c00000 100%); /* เปลี่ยนสี Gradient เล็กน้อย */
+    }
+
+    #calibrate-btn:active {
+        transform: scale(1.05); /* ปุ่มยุบตัวเมื่อกด */
+        box-shadow: 0 2px 10px rgba(255, 0, 0, 0.5); /* ลดเงาให้ดูจมลง */
+    }
+
+    /* [เหลือสไตล์ย่อยอื่น ๆ ที่เกี่ยวข้องกับ progress bar/risk status] */
+    
+    /* Media Queries สำหรับมือถือ/จอเล็ก */
+    @media (max-width: 767px) {
+        .sidebar {
+            width: 100%;
+            height: auto;
+            position: relative;
+            box-shadow: none;
+            padding-top: 0;
+            display: none; /* ซ่อน Sidebar ในมุมมองมือถือ */
+        }
+        .main-content-area {
+            margin-left: 0;
+            padding: 20px 10px;
+            max-width: 100%;
+        }
+        body {
+            flex-direction: column;
+        }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-wrapper">
+    <div class="overlay"></div>
+  </div>
+
+  <div class="sidebar">
+    <div class="sidebar-header">Posture Monitor</div>
+    <div id="nav-dashboard" class="nav-item active" data-page="dashboard">
+      <i class="fas fa-tachometer-alt"></i> Dashboard
+    </div>
+    <div id="nav-history" class="nav-item" data-page="history">
+      <i class="fas fa-history"></i> History
+    </div>
+  </div>
+
+  <div class="main-content-area">
+    
+    <div id="dashboard-page" class="content-page active">
+      <h1>Camera Client Dashboard</h1>
+      <h2>Monitor your posture risk levels in real time</h2>
+      
+      <div class="camera-section">
+        <video id="video" autoplay playsinline muted></video>
+        <div id="message">Waiting for camera...</div>
+      </div>
+
+      <div id="risk-container">
+        <h3>📊 Overall Risk Result</h3>
+        <div id="risk-display">Waiting for calibration...</div>
+      </div>
+
+      <button id="calibrate-btn">Start Calibration (t)</button>
+    </div>
+    
+<div id="history-page" class="content-page">
+      <div class="history-card">
+        <h3>📈 Risk Trend (Line Chart)</h3>
+          <div style="width: 95%; margin: auto; height: 300px; margin-bottom: 20px;"> 
+              <canvas id="risk-line-chart"></canvas>
+          </div>         <h3>🕒 History</h3>
+          <div id="history-chart">
+            <p>No history yet.</p>
+          </div>
+      </div>
+    </div>
+    
+    <footer>
+        </footer>
+  </div>
+
+  <script>
+    // ... [โค้ด JavaScript ส่วนบน (ตัวแปร, riskColorMap, sendCalibrateSignal)] ...
+    const video = document.getElementById("video");
+    const messageDiv = document.getElementById("message");
+    const riskDisplayDiv = document.getElementById("risk-display");
+    const historyChart = document.getElementById("history-chart");
+    const calibrateBtn = document.getElementById("calibrate-btn");
+    const serverUrl = window.location.protocol + "//" + window.location.host;
+    const uploadUrl = serverUrl + "/upload_frame";
+    const statusUrl = serverUrl + "/risk_status";
+    let isSending = false;
+    let myLineChart = null;
+
+    const riskColorMap = {
+      "Normal": "color-normal",
+      "Low Risk": "color-low",
+      "Moderate Risk": "color-moderate",
+      "High Risk": "color-high",
+      Unknown: "",
+    };
+
+    async function sendCalibrateSignal() {
+      try {
+        const response = await fetch(serverUrl + "/start_calibration", { method: "POST" });
+        if (response.ok) {
+          messageDiv.textContent = "Calibration started! Please assume a correct posture.";
+          riskDisplayDiv.innerHTML = "<p>Calibrating... Stand still.</p>";
+        } else {
+          messageDiv.textContent = "Error starting calibration on PC.";
+        }
+      } catch {
+        messageDiv.textContent = "Network error during calibration request.";
+      }
+    }
+    calibrateBtn.addEventListener("click", sendCalibrateSignal);
+
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then((stream) => {
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            video.play();
+            messageDiv.textContent = "Camera started! Sending frames to PC...";
+            setInterval(sendFrame, 1000 / 30);
+            setInterval(fetchRiskStatus, 1000);
+          };
+        })
+        .catch((err) => {
+          messageDiv.textContent = `Error: ${err.name}. Please allow camera.`;
+        });
+    }
+
+    async function sendFrame() {
+      if (!video.srcObject || isSending || video.readyState < video.HAVE_ENOUGH_DATA) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = 320;
+      canvas.height = 240;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataURL = canvas.toDataURL("image/jpeg", 0.7);
+      isSending = true;
+      try {
+        await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: dataURL }),
+        });
+      } catch (error) {
+        messageDiv.textContent = `Network Error: ${error.message}`;
+      } finally {
+        isSending = false;
+      }
+    }
+    
+    function renderLineChart(data) {
+      const historyChartCanvas = document.getElementById("risk-line-chart");
+      
+      if (!data || data.length === 0) {
+        if (myLineChart) {
+          myLineChart.destroy();
+          myLineChart = null;
+        }
+        return;
+      }
+      
+      // เรียงข้อมูลจากเก่าไปใหม่ (Round #1 -> Round #10)
+      const chartData = data.slice(); 
+      const labels = chartData.map((_, index) => `Round #${index + 1}`);
+
+      const datasets = [
+        {
+          label: 'Office Syndrome',
+          data: chartData.map(d => d['Office Syndrome']),
+          borderColor: '#4CAF50', // เขียว
+          backgroundColor: 'rgba(76, 175, 80, 0.4)',
+          fill: false,
+          tension: 0.3
+        },
+        {
+          label: 'Herniated Disc',
+          data: chartData.map(d => d['Herniated Disc']),
+          borderColor: '#FFC107', // เหลือง
+          backgroundColor: 'rgba(255, 193, 7, 0.4)',
+          fill: false,
+          tension: 0.3
+        },
+        {
+          label: 'Text Neck',
+          data: chartData.map(d => d['Text Neck']),
+          borderColor: '#2196F3', // ฟ้า
+          backgroundColor: 'rgba(33, 150, 243, 0.4)',
+          fill: false,
+          tension: 0.3
+        },
+        {
+          label: 'Piriformis',
+          data: chartData.map(d => d['Piriformis']),
+          borderColor: '#E91E63', // ชมพู
+          backgroundColor: 'rgba(233, 30, 99, 0.4)',
+          fill: false,
+          tension: 0.3
+        }
+      ];
+
+      const ctx = historyChartCanvas.getContext('2d');
+      
+      if (myLineChart) {
+        // อัพเดตกราฟที่มีอยู่
+        myLineChart.data.labels = labels;
+        myLineChart.data.datasets = datasets;
+        myLineChart.update();
+      } else {
+        // สร้างกราฟใหม่
+        myLineChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: datasets
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+              y: {
+                title: { display: true, text: 'Risk Percentage (%)', color: '#fff' },
+                min: 0,
+                max: 100,
+                ticks: { color: '#ccc' },
+                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+              },
+              x: {
+                title: { display: true, text: 'Measurement Round', color: '#fff' },
+                ticks: { color: '#ccc' },
+                grid: { display: false }
+              }
+            },
+            plugins: {
+              legend: {
+                labels: { color: '#fff' }
+              }
+            }
+          }
+        });
+      }
+    }
+    function renderHistoryChart(data) {
+      if (!data || data.length === 0) {
+        historyChart.innerHTML = "<p>No history yet.</p>";
+        return;
+      }
+      let html = '<div class="bar-content">';
+      const reversed = data.slice().reverse();
+      
+      reversed.forEach((entry, index) => {
+        const round = reversed.length - index;
+        
+
+        html += `
+          <div class="entry entry-header"> 
+            <div class="bar-label" style="text-align: left; grid-column: 1 / 3; font-size: 1.1em; padding-bottom: 5px;">
+              <strong>Round #${round}</strong>
+            </div>
+          </div>
+          `;
+        
+        // --- 2. แถวสำหรับ Office Syndrome ---
+        html += `
+          <div class="entry">
+            <div class="bar-label">Office ${entry["Office Syndrome"].toFixed(1)}%</div>
+            <div class="bar"><div class="fill office" style="width:${entry["Office Syndrome"]}%"></div></div>
+          </div>`;
+          
+        // --- 3. แถวสำหรับ Herniated Disc ---
+        html += `
+          <div class="entry">
+            <div class="bar-label">Disc ${entry["Herniated Disc"].toFixed(1)}%</div>
+            <div class="bar"><div class="fill disc" style="width:${entry["Herniated Disc"]}%"></div></div>
+          </div>`;
+
+        // --- 4. แถวสำหรับ Text Neck ---
+        html += `
+          <div class="entry">
+            <div class="bar-label">Neck ${entry["Text Neck"].toFixed(1)}%</div>
+            <div class="bar"><div class="fill neck" style="width:${entry["Text Neck"]}%"></div></div>
+          </div>`;
+
+        // --- 5. แถวสำหรับ Piriformis ---
+        html += `
+          <div class="entry">
+            <div class="bar-label">Piriformis ${entry["Piriformis"].toFixed(1)}%</div>
+            <div class="bar"><div class="fill piriformis" style="width:${entry["Piriformis"]}%"></div></div>
+          </div>`;
+      });
+      
+      historyChart.innerHTML = html;
+    }
+
+    async function fetchRiskStatus() {
+      try {
+        const response = await fetch(statusUrl);
+        const data = await response.json();
+        let htmlContent = "";
+
+        if (data.status === "waiting") {
+          htmlContent = "<p>Waiting for first frame...</p>";
+        } else if (data.status === "uncalibrated") {
+          htmlContent = "<p>Please click Start Calibration to begin.</p>";
+        } else if (data.status === "calibrating") {
+          htmlContent = "<p>Calibrating... Stand still.</p>";
+        } else if (data.status === "logging") {
+          htmlContent = `<p>Logging Risk... Time Remaining: ${data.time_remaining}s</p>`;
+        } else if (data.status === "ready" && data.results) {
+          htmlContent = "<div>";
+          data.results.forEach((item) => {
+            const percent = parseFloat(item.percent.replace("%", "")) || 0;
+            const colorClass = riskColorMap[item.risk] || "color-low";
+            htmlContent += `
+              <div class="risk-item">
+                <span class="risk-name">${item.name} | <span class="${colorClass}">${item.risk}</span></span>
+                <div class="progress-bar-container">
+                  <div class="progress-bar-fill ${colorClass}" style="width:${Math.min(percent,100)}%;">
+                    ${item.percent}
+                  </div>
+                </div>
+              </div>`;
+          });
+          htmlContent += "</div>";
+        } else {
+          htmlContent = `<p>Status: ${data.status}</p>`;
+        }
+
+       riskDisplayDiv.innerHTML = htmlContent;
+
+       
+        if (data.recent) {
+            //  วาดกราฟเส้น 
+            renderLineChart(data.recent);
+            // 2. วาดกราฟแท่ง 
+            renderHistoryChart(data.recent);
+        } else {
+            renderHistoryChart(null);
+            renderLineChart(null); 
+        }
+
+      } catch (error) {
+        riskDisplayDiv.innerHTML = "<p class='color-high'>Error fetching risk data.</p>";
+      }
+    }
+
+
+ 
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const targetPage = this.getAttribute('data-page');
+
+   
+            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+            document.querySelectorAll('.content-page').forEach(page => page.classList.remove('active'));
+
+ 
+            this.classList.add('active');
+            document.getElementById(`${targetPage}-page`).classList.add('active');
+            
+            if (targetPage === 'dashboard') {
+                if (video.srcObject && video.paused) video.play();
+            } else {
+
+            }
+        });
+    });
+
+
+    window.onload = startCamera;
+  </script>
+</body>
+</html>
